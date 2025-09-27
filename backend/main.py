@@ -14,6 +14,18 @@ app = FastAPI()
 async def upload_pdf(
     file: UploadFile = File(...)
 ):
+    """
+    Upload a PDF file, extract its text, chunk it, and store embeddings in a FAISS index.
+
+    Args:
+        file (UploadFile): The uploaded PDF file.
+
+    Returns:
+        dict: A message indicating success and the number of chunks processed.
+
+    Raises:
+        HTTPException (400): If there is an error reading or parsing the PDF.
+    """
     try:
         pdf_text = ""
         with pdfplumber.open(file.file) as pdf:
@@ -38,8 +50,17 @@ chat_history = []
 async def chatbot(
     query: str = Form(...)
 ) -> str:
+    """
+    Query the chatbot with a user question. Retrieves relevant PDF chunks
+    from FAISS and generates a response using the LLM.
 
-    # Search in FAISS
+    Args:
+        query (str): The user's input query.
+
+    Returns:
+        str: The assistant's response.
+    """
+    # Number of relevant chunks to retrieve from FAISS
     k = 3 # How many relevant search results we want.
     retrieved_chunks = retrieve_relevant_text(query=query, top_k = k)
 
@@ -51,10 +72,10 @@ Context from PDF:
 {retrieved_chunks}
 """
 
-    # Append to chat history
+    # Append user query to conversation history
     chat_history.append({"role": "user", "content": query})
 
-    # Send to Groq
+    # Send chat history + context to Groq LLM
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
@@ -66,5 +87,7 @@ Context from PDF:
     )
 
     output = response.choices[0].message.content
+    
+    # Append assistant response to conversation history
     chat_history.append({"role": "assistant", "content": output})
     return output
